@@ -3,49 +3,31 @@ import uuid
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QLineEdit, QPushButton, QListWidget,
                                QListWidgetItem, QMessageBox, QDialog, QFormLayout,
-                               QLabel, QTextEdit)
+                               QLabel, QTextEdit, QMenuBar, QMenu)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from src.models.password_model import PasswordEntry, PasswordDatabase
+from src.ui.theme_manager import ThemeManager
 
 class PasswordDialog(QDialog):
     def __init__(self, entry=None, parent=None):
         super().__init__(parent)
         self.entry = entry
         self.is_edit = entry is not None
+        self.parent_window = parent
         self.setup_ui()
 
         if self.is_edit:
             self.load_entry_data()
 
+        # Aplicar tema do parent
+        if hasattr(parent, 'theme_manager'):
+            self.apply_theme(parent.theme_manager.get_theme())
+
     def setup_ui(self):
         title = "Editar Senha" if self.is_edit else "Nova Senha"
         self.setWindowTitle(title)
         self.setFixedSize(400, 350)
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #2b2b2b;
-                color: white;
-            }
-            QLineEdit, QTextEdit {
-                padding: 8px;
-                border: 2px solid #444;
-                border-radius: 4px;
-                background-color: #3c3c3c;
-                color: white;
-            }
-            QPushButton {
-                background-color: #0078d4;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                color: white;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #106ebe;
-            }
-        """)
 
         layout = QFormLayout()
 
@@ -111,6 +93,12 @@ class PasswordDialog(QDialog):
         self.setLayout(layout)
         self.title_input.setFocus()
 
+    def apply_theme(self, theme):
+        """Aplica tema ao diálogo"""
+        if hasattr(self.parent_window, 'theme_manager'):
+            style = self.parent_window.theme_manager.get_dialog_style(theme)
+            self.setStyleSheet(style)
+
     def load_entry_data(self):
         """Carrega dados da entrada para edição"""
         self.title_input.setText(self.entry.title)
@@ -173,51 +161,28 @@ class MainWindow(QMainWindow):
         self.database = None
         self.filtered_entries = []
 
+        # Adicionar theme manager
+        self.theme_manager = ThemeManager()
+        self.theme_manager.theme_changed.connect(self.apply_theme)
+
         self.load_database()
         self.setup_ui()
-        self.filter_entries()  # Inicializar lista filtrada
+        self.apply_theme(self.theme_manager.get_theme())  # Aplicar tema inicial
+        self.filter_entries()
 
     def setup_ui(self):
         self.setWindowTitle("Picoword Two - Gerenciador de Senhas")
         self.setMinimumSize(600, 400)
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #2b2b2b;
-                color: white;
-            }
-            QLineEdit {
-                padding: 8px;
-                border: 2px solid #444;
-                border-radius: 4px;
-                background-color: #3c3c3c;
-                color: white;
-            }
-            QListWidget {
-                background-color: #3c3c3c;
-                border: 2px solid #444;
-                border-radius: 4px;
-                color: white;
-                font-size: 12px;
-            }
-            QListWidget::item {
-                padding: 8px;
-                border-bottom: 1px solid #555;
-            }
-            QListWidget::item:selected {
-                background-color: #0078d4;
-            }
-            QPushButton {
-                background-color: #0078d4;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 4px;
-                color: white;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #106ebe;
-            }
-        """)
+
+        # Menu bar
+        menubar = self.menuBar()
+
+        # Menu Visualizar
+        view_menu = menubar.addMenu('Visualizar')
+
+        # Ação para alternar tema
+        self.toggle_theme_action = view_menu.addAction('🌙 Alternar Tema')
+        self.toggle_theme_action.triggered.connect(self.toggle_theme)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -253,6 +218,17 @@ class MainWindow(QMainWindow):
         layout.addLayout(button_layout)
 
         central_widget.setLayout(layout)
+
+    def toggle_theme(self):
+        """Alterna tema"""
+        new_theme = self.theme_manager.toggle_theme()
+        icon = "☀️" if new_theme == "light" else "🌙"
+        self.toggle_theme_action.setText(f"{icon} Alternar Tema")
+
+    def apply_theme(self, theme):
+        """Aplica tema à janela"""
+        style = self.theme_manager.get_main_window_style(theme)
+        self.setStyleSheet(style)
 
     def load_database(self):
         """Carrega database do storage"""
